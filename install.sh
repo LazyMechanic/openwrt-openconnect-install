@@ -804,6 +804,7 @@ configure_interface() {
     vpn_if_name=""
     vpn_if_metric=""
     vpn_if_auto=""
+    vpn_if_peerdns=""
     vpn_if_default_route=""
     vpn_if_proto="openconnect"
     vpn_proto=""
@@ -816,6 +817,7 @@ configure_interface() {
     prompt_input vpn_if_name 'Interface name' oc0
     prompt_input vpn_if_metric 'Interface metric' 0 range 0 4294967295
     prompt_input vpn_if_auto 'Bring up on boot' 1 enum 0 1
+    prompt_input vpn_if_peerdns 'Enable DNS over VPN' 1 enum 0 1
     prompt_input vpn_if_default_route 'Enable default route' 1 enum 0 1
     prompt_select vpn_proto 'Select protocol' 1 \
         '1:anyconnect' 'Cisco AnyConnect' \
@@ -837,17 +839,18 @@ configure_interface() {
 
     VPN_IF_NAME="${vpn_if_name}"
 
-    log_info "Interface name:     [${vpn_if_name}]"
-    log_info "Interface metric:   [${vpn_if_metric}]"
-    log_info "Interface protocol: [${vpn_if_proto}]"
-    log_info "Bring up on boot:   [${vpn_if_auto}]"
-    log_info "Default route:      [${vpn_if_default_route}]"
-    log_info "VPN Protocol:       [${vpn_proto}]"
-    log_info "Server URI:         [${server_uri}]"
-    log_info "Server port:        [${server_port}]"
-    log_info "Server hash:        [${server_hash}]"
-    log_info "Username:           [${username}]"
-    log_info "Password:           [${password:+***}]"
+    log_info "Interface name:      [${vpn_if_name}]"
+    log_info "Interface metric:    [${vpn_if_metric}]"
+    log_info "Interface protocol:  [${vpn_if_proto}]"
+    log_info "Bring up on boot:    [${vpn_if_auto}]"
+    log_info "Enable DNS over VPN: [${vpn_if_peerdns}]"
+    log_info "Default route:       [${vpn_if_default_route}]"
+    log_info "VPN Protocol:        [${vpn_proto}]"
+    log_info "Server URI:          [${server_uri}]"
+    log_info "Server port:         [${server_port}]"
+    log_info "Server hash:         [${server_hash}]"
+    log_info "Username:            [${username}]"
+    log_info "Password:            [${password:+***}]"
 
     if ! prompt_yes_no 'Ready to create VPN interface?' Y; then return; fi
 
@@ -861,6 +864,7 @@ configure_interface() {
     uci set "network.${vpn_if_name}.name=${vpn_if_name}"
     uci set "network.${vpn_if_name}.metric=${vpn_if_metric}"
     uci set "network.${vpn_if_name}.auto=${vpn_if_auto}"
+    uci set "network.${vpn_if_name}.peerdns=${vpn_if_peerdns}"
     uci set "network.${vpn_if_name}.defaultroute=${vpn_if_default_route}"
     uci set "network.${vpn_if_name}.proto=${vpn_if_proto}"
     uci set "network.${vpn_if_name}.vpn_protocol=${vpn_proto}"
