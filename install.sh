@@ -802,6 +802,7 @@ configure_interface() {
 
     vpn_if_name=""
     vpn_if_metric=""
+    vpn_if_auto=""
     vpn_if_default_route=""
     vpn_proto=""
     server_host=""
@@ -812,6 +813,7 @@ configure_interface() {
 
     prompt_input vpn_if_name 'Interface name' oc0
     prompt_input vpn_if_metric 'Interface metric' 0 range 0 4294967295
+    prompt_input vpn_if_auto 'Bring up on boot' 1 enum 0 1
     prompt_input vpn_if_default_route 'Enable default route' 1 enum 0 1
     prompt_select vpn_proto 'Select protocol' 1 \
         '1:openconnect' 'OpenConnect (AnyConnect)'
@@ -827,15 +829,16 @@ configure_interface() {
 
     VPN_IF_NAME="${vpn_if_name}"
 
-    log_info "Interface name:       [${vpn_if_name}]"
-    log_info "Interface metric:     [${vpn_if_metric}]"
-    log_info "Enable default route: [${vpn_if_default_route}]"
-    log_info "VPN Protocol:         [${vpn_proto}]"
-    log_info "Server host:          [${server_host}]"
-    log_info "Server port:          [${server_port}]"
-    log_info "Server hash:          [${server_hash}]"
-    log_info "Username:             [${username}]"
-    log_info "Password:             [***]"
+    log_info "Interface name:   [${vpn_if_name}]"
+    log_info "Interface metric: [${vpn_if_metric}]"
+    log_info "Bring up on boot: [${vpn_if_auto}]"
+    log_info "Default route:    [${vpn_if_default_route}]"
+    log_info "VPN Protocol:     [${vpn_proto}]"
+    log_info "Server host:      [${server_host}]"
+    log_info "Server port:      [${server_port}]"
+    log_info "Server hash:      [${server_hash}]"
+    log_info "Username:         [${username}]"
+    log_info "Password:         [***]"
 
     if ! prompt_yes_no 'Ready to create VPN interface?' Y; then return; fi
 
