@@ -861,7 +861,7 @@ configure_interface() {
     uci set "network.${vpn_if_name}.name=${vpn_if_name}"
     uci set "network.${vpn_if_name}.metric=${vpn_if_metric}"
     uci set "network.${vpn_if_name}.defaultroute=${vpn_if_default_route}"
-    uci set "network.${vpn_if_name}.proto=${vpn_proto}"
+    uci set "network.${vpn_if_name}.proto=${vpn_if_proto}"
     uci set "network.${vpn_if_name}.vpn_protocol=${vpn_proto}"
     uci set "network.${vpn_if_name}.uri=${server_uri}"
     uci set "network.${vpn_if_name}.port=${server_port}"
