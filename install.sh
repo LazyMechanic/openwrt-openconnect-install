@@ -805,7 +805,7 @@ configure_interface() {
     vpn_if_auto=""
     vpn_if_default_route=""
     vpn_proto=""
-    server_host=""
+    server_uri=""
     server_port=""
     server_hash=""
     username=""
@@ -817,12 +817,12 @@ configure_interface() {
     prompt_input vpn_if_default_route 'Enable default route' 1 enum 0 1
     prompt_select vpn_proto 'Select protocol' 1 \
         '1:openconnect' 'OpenConnect (AnyConnect)'
-    prompt_input server_host 'Server host' '' string 1
+    prompt_input server_uri 'Server host' '' string 1
 
-    host_port=""
-    parse_url host_schema host host_port host_secret_key "${server_host}"
+    server_uri_port=""
+    parse_url server_uri_schema host server_uri_port server_uri_secret_key "${server_uri}"
 
-    prompt_input server_port 'Server port' "${host_port}" port
+    prompt_input server_port 'Server port' "${server_uri_port}" port
     prompt_input server_hash 'Server hash (sha256:XXX)'
     prompt_input username 'Username' '' string 1
     prompt_hidden_input password 'Password'
@@ -834,7 +834,7 @@ configure_interface() {
     log_info "Bring up on boot: [${vpn_if_auto}]"
     log_info "Default route:    [${vpn_if_default_route}]"
     log_info "VPN Protocol:     [${vpn_proto}]"
-    log_info "Server host:      [${server_host}]"
+    log_info "Server URI:       [${server_uri}]"
     log_info "Server port:      [${server_port}]"
     log_info "Server hash:      [${server_hash}]"
     log_info "Username:         [${username}]"
@@ -853,7 +853,7 @@ configure_interface() {
     uci set "network.${vpn_if_name}.metric=${vpn_if_metric}"
     uci set "network.${vpn_if_name}.defaultroute=${vpn_if_default_route}"
     uci set "network.${vpn_if_name}.proto=${vpn_proto}"
-    uci set "network.${vpn_if_name}.server=${server_host}"
+    uci set "network.${vpn_if_name}.uri=${server_uri}"
     uci set "network.${vpn_if_name}.port=${server_port}"
     uci set "network.${vpn_if_name}.serverhash=${server_hash}"
     uci set "network.${vpn_if_name}.username=${username}"
