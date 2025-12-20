@@ -5,6 +5,7 @@ set -eu
 
 VERBOSE=0
 VPNC_SCRIPT_PATH="/lib/netifd/vpnc-script"
+VPN_IF_NAME=""
 
 #===============================================================================
 # Color Setup (TTY-aware)
@@ -755,6 +756,8 @@ configure_interface() {
     prompt_input username 'Username' '' string 1
     prompt_hidden_input password 'Password'
 
+    VPN_IF_NAME="${vpn_if_name}"
+
     log_info "Interface name:       [${vpn_if_name}]"
     log_info "Interface metric:     [${vpn_if_metric}]"
     log_info "Enable default route: [${vpn_if_default_route}]"
@@ -767,26 +770,70 @@ configure_interface() {
 
     if ! prompt_yes_no 'Ready to create VPN interface?' Y; then return; fi
 
-    if uci -q show network.${vpn_if_name} >/dev/null; then
+    if uci -q show "network.${vpn_if_name}" >/dev/null; then
         log_warn "Network '${vpn_if_name}' already exists"
         if ! prompt_yes_no 'Override config?' Y; then return; fi
-        uci delete network.${vpn_if_name}
+        uci delete "network.${vpn_if_name}"
     fi
 
-    uci set network.${vpn_if_name}=interface
-    uci set network.${vpn_if_name}.name="${vpn_if_name}"
-    uci set network.${vpn_if_name}.metric="${vpn_if_metric}"
-    uci set network.${vpn_if_name}.defaultroute="${vpn_if_default_route}"
-    uci set network.${vpn_if_name}.proto="${vpn_proto}"
-    uci set network.${vpn_if_name}.server="${server_host}"
-    uci set network.${vpn_if_name}.port="${server_port}"
-    uci set network.${vpn_if_name}.serverhash="${server_hash}"
-    uci set network.${vpn_if_name}.username="${username}"
-    uci set network.${vpn_if_name}.password="${password}"
+    uci set "network.${vpn_if_name}=interface"
+    uci set "network.${vpn_if_name}.name='${vpn_if_name}'"
+    uci set "network.${vpn_if_name}.metric='${vpn_if_metric}'"
+    uci set "network.${vpn_if_name}.defaultroute='${vpn_if_default_route}'"
+    uci set "network.${vpn_if_name}.proto='${vpn_proto}'"
+    uci set "network.${vpn_if_name}.server='${server_host}'"
+    uci set "network.${vpn_if_name}.port='${server_port}'"
+    uci set "network.${vpn_if_name}.serverhash='${server_hash}'"
+    uci set "network.${vpn_if_name}.username='${username}'"
+    uci set "network.${vpn_if_name}.password='${password}'"
 
     uci commit network
 
     log_info "Network interface configured!"
+}
+
+configure_firewall() {
+    if ! prompt_yes_no 'Configure firewall?' Y; then return; fi
+
+    fw_zone_name=""
+    fw_zone_network="${VPN_IF_NAME}"
+    fw_zone_masq="1"
+    fw_zone_mtu_fix="1"
+    fw_zone_input="REJECT"
+    fw_zone_output="ACCEPT"
+    fw_zone_forward="REJECT"
+
+    prompt_input fw_zone_name 'Firewall zone name' oc string 1
+    [ -z "${fw_zone_network}" ] && prompt_input fw_zone_network 'Firewall zone network' '' string 1
+
+    log_info "Zone name:    [${fw_zone_name}]"
+    log_info "Network:      [${fw_zone_network}]"
+    log_info "Masquarad:    [${fw_zone_masq}]"
+    log_info "MSS clamping: [${fw_zone_mtu_fix}]"
+    log_info "Input:        [${fw_zone_input}]"
+    log_info "Output:       [${fw_zone_output}]"
+    log_info "Forward:      [${fw_zone_forward}]"
+
+    if ! prompt_yes_no 'Ready to configure firewall?' Y; then return; fi
+
+    uci add firewall zone
+    uci set firewall.@zone[-1]=zone
+    uci set "firewall.@zone[-1].name=${fw_zone_name}"
+    uci set "firewall.@zone[-1].network=${fw_zone_network}"
+    uci set "firewall.@zone[-1].masq=${fw_zone_masq}"
+    uci set "firewall.@zone[-1].mtu_fix=${fw_zone_mtu_fix}"
+    uci set "firewall.@zone[-1].input=${fw_zone_input}"
+    uci set "firewall.@zone[-1].output=${fw_zone_output}"
+    uci set "firewall.@zone[-1].forward=${fw_zone_forward}"
+
+    uci add firewall forwarding
+    uci set firewall.@forwarding[-1]=forwarding
+    uci set firewall.@forwarding[-1].src='lan'
+    uci set "firewall.@forwarding[-1].dest='${fw_zone_name}'"
+
+    uci commit firewall
+
+    log_info "Firewall configured!"
 }
 
 install_hooks() {
@@ -794,7 +841,7 @@ install_hooks() {
 
     # Check vpnc-script installed
     if [ ! -f "${VPNC_SCRIPT_PATH}" ]; then
-        log_error "'${VPNC_SCRIPT_PATH}' not found. See 'https://www.infradead.org/openconnect/vpnc-script.html' for more info"
+        log_error "'${VPNC_SCRIPT_PATH}' not found. Skip installation. See 'https://www.infradead.org/openconnect/vpnc-script.html' for more info"
         return 1
     fi
 
@@ -987,6 +1034,7 @@ main() {
 
     install_openconnect
     configure_interface
+    configure_firewall
     install_hooks
     
     if prompt_yes_no "Do you want to reboot device?" Y; then
