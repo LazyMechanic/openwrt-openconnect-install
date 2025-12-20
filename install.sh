@@ -111,7 +111,7 @@ prompt_yes_no() {
 
         # Prompt user
         printf "%s" "${prompt_next}"
-        read answer || return 1 # Ctrl+D counts as no
+        read -r answer || return 1 # Ctrl+D counts as no
 
         # Use default if input is empty
         if [ -z "${answer}" ] && [ -n "${default}" ]; then
@@ -243,7 +243,7 @@ prompt_select() {
             printf '> '
         fi
 
-        read ans || return 1
+        read -r ans || return 1
 
         # Empty input → use default
         if [ -z "${ans}" ]; then
@@ -307,10 +307,10 @@ prompt_select() {
 #
 # Usage:
 #   prompt_hidden_input password 'Enter password'
-#   [ "${password}" -eq "..." ] || exit 1
+#   [ "${password}" = "..." ] || exit 1
 #
 #   prompt_hidden_input secret 'Enter secret' 'changeme'
-#   [ "${secret}" -eq "changeme" ] || exit 1
+#   [ "${secret}" = "changeme" ] || exit 1
 #
 # Display:
 #   Enter password
@@ -339,18 +339,16 @@ prompt_hidden_input() {
         printf '> '
     fi
 
-    # Save terminal settings and disable echo
-    savedstty=$(stty -g 2>/dev/null)
-    stty -echo 2>/dev/null
-
     # Read the input
-    read inputval
+    # Disable echo via /bin/sh escape sequence
+    if [ -t 0 ]; then
+        printf '\033[8m'  # ANSI: invisible text
+    fi
 
-    # Restore terminal settings
-    if [ -n "${savedstty}" ]; then
-        stty "${savedstty}" 2>/dev/null
-    else
-        stty echo 2>/dev/null
+    read -r inputval
+
+    if [ -t 0 ]; then
+        printf '\033[28m' # ANSI: visible text
     fi
 
     # Print newline since echo was disabled during input
@@ -436,7 +434,7 @@ prompt_input() {
             printf '> '
         fi
         
-        read ans || return 1
+        read -r ans || return 1
         
         # Use default if empty
         [ -z "${ans}" ] && ans="${default}"
@@ -732,6 +730,66 @@ install_openconnect() {
     log_info "OpenConnect package installed!"
 }
 
+parse_url() {
+    # 1. Map arguments to temporary variables
+    var_schema="$1"
+    var_host="$2"
+    var_port="$3"
+    var_key="$4"
+    input="$5"
+
+    # 2. Initialize output values
+    val_schema=""
+    val_host=""
+    val_port=""
+    val_key=""
+
+    # 3. Extract Secret Key (Query string after ?)
+    # We use *\?* to match literal '?'
+    case "$input" in
+        *\?*)
+            val_key="${input#*\?}"     # Get part after ?
+            input="${input%%\?*}"      # Remove part after ? from input
+            ;;
+    esac
+
+    # 4. Extract Schema (Prefix before ://)
+    case "$input" in
+        *://*)
+            val_schema="${input%%://*}" # Get part before ://
+            input="${input#*://}"       # Remove part before :// from input
+            ;;
+    esac
+
+    # 5. Cleanup trailing slash (e.g. domain.org/)
+    input="${input%/}"
+
+    # 6. Extract Port (Suffix after last :)
+    case "$input" in
+        *:*)
+            val_port="${input##*:}"     # Get part after last :
+            val_host="${input%:*}"      # Get part before last :
+            ;;
+        *)
+            val_host="${input}"
+            ;;
+    esac
+
+    # 7. Apply Default Ports Logic
+    # Only if port is empty and schema is known
+    if [ -z "${val_port}" ]; then
+        case "${val_schema}" in
+            http)  val_port="80" ;;
+            https) val_port="443" ;;
+        esac
+    fi
+
+    eval "${var_schema}='${val_schema}'"
+    eval "${var_host}='${val_host}'"
+    eval "${var_port}='${val_port}'"
+    eval "${var_key}='${val_key}'"
+}
+
 configure_interface() {
     if ! prompt_yes_no 'Configure VPN interface?' Y; then return; fi
 
@@ -751,7 +809,11 @@ configure_interface() {
     prompt_select vpn_proto 'Select protocol' 1 \
         '1:openconnect' 'OpenConnect (AnyConnect)'
     prompt_input server_host 'Server host' '' string 1
-    prompt_input server_port 'Server port' '' port
+
+    host_port=""
+    parse_url host_schema host host_port host_secret_key "${server_host}"
+
+    prompt_input server_port 'Server port' "${host_port}" port
     prompt_input server_hash 'Server hash (sha256:XXX)'
     prompt_input username 'Username' '' string 1
     prompt_hidden_input password 'Password'
