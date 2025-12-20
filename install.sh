@@ -339,17 +339,24 @@ prompt_hidden_input() {
         printf '> '
     fi
 
-    # Read the input
-    # Disable echo via /bin/sh escape sequence
-    if [ -t 0 ]; then
-        printf '\033[8m'  # ANSI: invisible text
+    # shellcheck disable=SC3045
+    if read -s -r inputval 2>/dev/null; then
+        : # Success, inputval already set
+    else
+        # Read the input
+        # Disable echo via /bin/sh escape sequence
+        if [ -t 0 ]; then
+            printf '\033[8m'  # ANSI: invisible text
+        fi
+
+        read -r inputval
+
+        # Enable echo via /bin/sh escape sequence
+        if [ -t 0 ]; then
+            printf '\033[28m' # ANSI: visible text
+        fi
     fi
 
-    read -r inputval
-
-    if [ -t 0 ]; then
-        printf '\033[28m' # ANSI: visible text
-    fi
 
     # Print newline since echo was disabled during input
     printf '\n'
@@ -718,8 +725,8 @@ install_openconnect() {
     pkg=""
     prompt_select pkg \
         'Select OpenConnect package' '1' \
-        '1:openconnect' 'openconnect (just VPN client)' \
-        '2:luci-proto-openconnect' 'luci-proto-openconnect (LuCI support)'
+        '1:luci-proto-openconnect' 'luci-proto-openconnect (with LuCI support)' \
+        '2:openconnect' 'openconnect (just VPN client)'
 
     if ! prompt_yes_no 'Ready to install package?' Y; then return; fi
 
@@ -839,15 +846,15 @@ configure_interface() {
     fi
 
     uci set "network.${vpn_if_name}=interface"
-    uci set "network.${vpn_if_name}.name='${vpn_if_name}'"
-    uci set "network.${vpn_if_name}.metric='${vpn_if_metric}'"
-    uci set "network.${vpn_if_name}.defaultroute='${vpn_if_default_route}'"
-    uci set "network.${vpn_if_name}.proto='${vpn_proto}'"
-    uci set "network.${vpn_if_name}.server='${server_host}'"
-    uci set "network.${vpn_if_name}.port='${server_port}'"
-    uci set "network.${vpn_if_name}.serverhash='${server_hash}'"
-    uci set "network.${vpn_if_name}.username='${username}'"
-    uci set "network.${vpn_if_name}.password='${password}'"
+    uci set "network.${vpn_if_name}.name=${vpn_if_name}"
+    uci set "network.${vpn_if_name}.metric=${vpn_if_metric}"
+    uci set "network.${vpn_if_name}.defaultroute=${vpn_if_default_route}"
+    uci set "network.${vpn_if_name}.proto=${vpn_proto}"
+    uci set "network.${vpn_if_name}.server=${server_host}"
+    uci set "network.${vpn_if_name}.port=${server_port}"
+    uci set "network.${vpn_if_name}.serverhash=${server_hash}"
+    uci set "network.${vpn_if_name}.username=${username}"
+    uci set "network.${vpn_if_name}.password=${password}"
 
     uci commit network
 
@@ -891,7 +898,7 @@ configure_firewall() {
     uci add firewall forwarding
     uci set firewall.@forwarding[-1]=forwarding
     uci set firewall.@forwarding[-1].src='lan'
-    uci set "firewall.@forwarding[-1].dest='${fw_zone_name}'"
+    uci set "firewall.@forwarding[-1].dest=${fw_zone_name}"
 
     uci commit firewall
 
