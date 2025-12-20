@@ -804,7 +804,8 @@ configure_interface() {
     vpn_if_metric=""
     vpn_if_auto=""
     vpn_if_default_route=""
-    vpn_proto=""
+    vpn_if_proto=""
+    vpn_proto="openconnect"
     server_uri=""
     server_port=""
     server_hash=""
@@ -815,8 +816,11 @@ configure_interface() {
     prompt_input vpn_if_metric 'Interface metric' 0 range 0 4294967295
     prompt_input vpn_if_auto 'Bring up on boot' 1 enum 0 1
     prompt_input vpn_if_default_route 'Enable default route' 1 enum 0 1
-    prompt_select vpn_proto 'Select protocol' 1 \
-        '1:openconnect' 'OpenConnect (AnyConnect)'
+    prompt_select vpn_if_proto 'Select protocol' 1 \
+        '1:anyconnect' 'Cisco AnyConnect' \
+        '2:nc' 'Juniper Network Connect' \
+        '3:gp' 'Palo Alto Networks GlobalProtect' \
+        '4:pulse' 'Pulse Connect Secure'
     prompt_input server_uri 'Server host' '' string 1
 
     server_uri_port=""
@@ -824,21 +828,25 @@ configure_interface() {
 
     prompt_input server_port 'Server port' "${server_uri_port}" port
     prompt_input server_hash 'Server hash (sha256:XXX)'
-    prompt_input username 'Username' '' string 1
-    prompt_hidden_input password 'Password'
+
+    if prompt_yes_no 'Configure user?' Y; then
+        prompt_input username 'Username' '' string 1
+        prompt_hidden_input password 'Password'
+    fi
 
     VPN_IF_NAME="${vpn_if_name}"
 
-    log_info "Interface name:   [${vpn_if_name}]"
-    log_info "Interface metric: [${vpn_if_metric}]"
-    log_info "Bring up on boot: [${vpn_if_auto}]"
-    log_info "Default route:    [${vpn_if_default_route}]"
-    log_info "VPN Protocol:     [${vpn_proto}]"
-    log_info "Server URI:       [${server_uri}]"
-    log_info "Server port:      [${server_port}]"
-    log_info "Server hash:      [${server_hash}]"
-    log_info "Username:         [${username}]"
-    log_info "Password:         [***]"
+    log_info "Interface name:     [${vpn_if_name}]"
+    log_info "Interface metric:   [${vpn_if_metric}]"
+    log_info "Interface protocol: [${vpn_if_proto}]"
+    log_info "Bring up on boot:   [${vpn_if_auto}]"
+    log_info "Default route:      [${vpn_if_default_route}]"
+    log_info "VPN Protocol:       [${vpn_proto}]"
+    log_info "Server URI:         [${server_uri}]"
+    log_info "Server port:        [${server_port}]"
+    log_info "Server hash:        [${server_hash}]"
+    log_info "Username:           [${username}]"
+    log_info "Password:           [${password:+***}]"
 
     if ! prompt_yes_no 'Ready to create VPN interface?' Y; then return; fi
 
@@ -853,6 +861,7 @@ configure_interface() {
     uci set "network.${vpn_if_name}.metric=${vpn_if_metric}"
     uci set "network.${vpn_if_name}.defaultroute=${vpn_if_default_route}"
     uci set "network.${vpn_if_name}.proto=${vpn_proto}"
+    uci set "network.${vpn_if_name}.vpn_protocol=${vpn_proto}"
     uci set "network.${vpn_if_name}.uri=${server_uri}"
     uci set "network.${vpn_if_name}.port=${server_port}"
     uci set "network.${vpn_if_name}.serverhash=${server_hash}"
