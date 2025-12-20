@@ -1004,8 +1004,10 @@ install_on_post_disconnect_hook() {
 # OpenConnect post-disconnect hook - Remove VPN gateway route
 #
 
-STATE_FILE="/tmp/openconnect-route.state"
+. /lib/functions/network.sh
 network_flush_cache
+
+STATE_FILE="/tmp/openconnect-route.state"
 
 log() {
     logger -t "openconnect[post-disconnect]" "$1"
