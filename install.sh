@@ -949,7 +949,7 @@ install_on_connect_script_hook() {
     cat > "${file}" << 'EOF'
 #!/bin/sh
 #
-# OpenConnect post-connect hook - Add VPN gateway route via WAN
+# OpenConnect connect hook - Add VPN gateway route via WAN
 #
 
 . /lib/functions/network.sh
@@ -1007,9 +1007,6 @@ install_on_post_disconnect_hook() {
 #
 # OpenConnect post-disconnect hook - Remove VPN gateway route
 #
-
-. /lib/functions/network.sh
-network_flush_cache
 
 STATE_FILE="/tmp/openconnect-route.state"
 
