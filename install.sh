@@ -730,8 +730,9 @@ install_openconnect() {
 
     if ! prompt_yes_no 'Ready to install package?' Y; then return; fi
 
-
+    log_info "Refreshing packages list..."
     opkg update
+    log_info "Installing ${pkg}..."
     opkg install "${pkg}"
 
     log_info "OpenConnect package installed!"
@@ -804,8 +805,8 @@ configure_interface() {
     vpn_if_metric=""
     vpn_if_auto=""
     vpn_if_default_route=""
-    vpn_if_proto=""
-    vpn_proto="openconnect"
+    vpn_if_proto="openconnect"
+    vpn_proto=""
     server_uri=""
     server_port=""
     server_hash=""
@@ -816,7 +817,7 @@ configure_interface() {
     prompt_input vpn_if_metric 'Interface metric' 0 range 0 4294967295
     prompt_input vpn_if_auto 'Bring up on boot' 1 enum 0 1
     prompt_input vpn_if_default_route 'Enable default route' 1 enum 0 1
-    prompt_select vpn_if_proto 'Select protocol' 1 \
+    prompt_select vpn_proto 'Select protocol' 1 \
         '1:anyconnect' 'Cisco AnyConnect' \
         '2:nc' 'Juniper Network Connect' \
         '3:gp' 'Palo Alto Networks GlobalProtect' \
