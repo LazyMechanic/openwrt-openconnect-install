@@ -6,6 +6,7 @@ set -eu
 VERBOSE=0
 VPNC_SCRIPT_PATH="/lib/netifd/vpnc-script"
 VPN_IF_NAME=""
+VHOST_NET=0
 
 #===============================================================================
 # Color Setup (TTY-aware)
@@ -722,20 +723,32 @@ check_dependencies() {
 install_openconnect() {
     if ! prompt_yes_no 'Install OpenConnect VPN client package?' Y; then return; fi
 
-    pkg=""
+    pkgs=""
+
+    oc_pkg=""
     prompt_select pkg \
         'Select OpenConnect package' '1' \
         '1:luci-proto-openconnect' 'luci-proto-openconnect (with LuCI support)' \
         '2:openconnect' 'openconnect (just VPN client)'
 
-    if ! prompt_yes_no 'Ready to install package?' Y; then return; fi
+    pkgs="${oc_pkg}"
+
+    if ! prompt_yes_no 'Install 'kmod-vhost-net' for enhancing networking performance?' Y; then
+        pkgs="${pkgs} kmod-vhost-net"
+        VHOST_NET=1
+    fi
+
+    if ! prompt_yes_no 'Ready to install packages?' Y; then return; fi
 
     log_info "Refreshing packages list..."
     opkg update
-    log_info "Installing ${pkg}..."
-    opkg install "${pkg}"
 
-    log_info "OpenConnect package installed!"
+    for pkg in ${pkgs}; do
+        log_info "Installing ${pkg}..."
+        opkg install "${pkg}"
+    done
+
+    log_info "OpenConnect packages installed!"
 }
 
 parse_url() {
@@ -924,7 +937,7 @@ configure_firewall() {
 }
 
 install_hooks() {
-    if ! prompt_yes_no "Install 'vpnc-script' hooks (if 'defaultroute'='1' is set, a routing loop will occur without hooks)?" Y; then return; fi
+    if ! prompt_yes_no "Install 'vpnc-script' hooks?" Y; then return; fi
 
     # Check vpnc-script installed
     if [ ! -f "${VPNC_SCRIPT_PATH}" ]; then
@@ -932,14 +945,42 @@ install_hooks() {
         return 1
     fi
 
-    install_on_connect_script_hook
-    install_on_post_disconnect_hook
-    install_on_reconnect_hook
+    install_tundev_mtu_hook
+    if [ "${VHOST_NET}" -eq 0 ]; then
+        install_vpngateway_route_bypass_hook
+        install_vpngateway_route_revert_hook
+        install_vpngateway_route_reload_hook
+    fi
     
     log_info "'vpnc-script' hooks installed!"
 }
 
-install_on_connect_script_hook() {
+install_tundev_mtu_hook() {
+    dir="/etc/openconnect/connect.d"
+    file="${dir}/10-tundev-mtu"
+
+    log_debug "Installing '${file}'"
+
+    mkdir -p ${dir}
+    cat > "${file}" << 'EOF'
+#!/bin/sh
+#
+# OpenConnect connect hook - Set MTU on tun device
+#
+
+MTU="${INTERNAL_IP4_MTU:-1412}"
+log "Setting mtu=$MTU for device $TUNDEV"
+ip link set dev $TUNDEV up mtu $MTU \
+  || { log "Failed to set mtu for $TUNDEV"; return 1; }
+log "Successfully set mtu for $TUNDEV"
+
+return 0
+EOF
+    
+    log_info "Hook '${file}' installed!"
+}
+
+install_vpngateway_route_bypass_hook() {
     dir="/etc/openconnect/connect.d"
     file="${dir}/10-vpngateway-route-bypass"
 
@@ -958,7 +999,7 @@ network_flush_cache
 STATE_FILE="/tmp/openconnect-route.state"
 
 log() {
-    logger -t "openconnect[connect]" "$1"
+    logger -t "openconnect.connect.vpngateway-route-bypass" "$1"
 }
 
 if [ -z "$VPNGATEWAY" ]; then
@@ -979,23 +1020,18 @@ if [ -z "$WAN_GW" ] || [ -z "$WAN_DEV" ]; then
 fi
 
 log "Adding route: $VPNGATEWAY via $WAN_GW dev $WAN_DEV"
+ip route replace "$VPNGATEWAY" via "$WAN_GW" dev "$WAN_DEV" metric 1 \
+  || { log "Failed to add route for $VPNGATEWAY"; return 1; }
+log "Successfully added route for $VPNGATEWAY"
+echo "$VPNGATEWAY $WAN_GW $WAN_DEV" > "$STATE_FILE"
 
-ip route replace "$VPNGATEWAY" via "$WAN_GW" dev "$WAN_DEV" metric 1
-
-if [ $? -eq 0 ]; then
-    log "Successfully added route for $VPNGATEWAY"
-    echo "$VPNGATEWAY $WAN_GW $WAN_DEV" > "$STATE_FILE"
-    return 0
-else
-    log "Failed to add route for $VPNGATEWAY"
-    return 1
-fi
+return 0
 EOF
     
     log_info "Hook '${file}' installed!"
 }
 
-install_on_post_disconnect_hook() {
+install_vpngateway_route_revert_hook() {
     dir="/etc/openconnect/post-disconnect.d"
     file="${dir}/10-vpngateway-route-revert"
 
@@ -1011,7 +1047,7 @@ install_on_post_disconnect_hook() {
 STATE_FILE="/tmp/openconnect-route.state"
 
 log() {
-    logger -t "openconnect[post-disconnect]" "$1"
+    logger -t "openconnect.post-disconnect.vpngateway-route-revert" "$1"
 }
 
 # Try state file first
@@ -1041,7 +1077,7 @@ EOF
     log_info "Hook '${file}' installed!"
 }
 
-install_on_reconnect_hook() {
+install_vpngateway_route_reload_hook() {
     dir="/etc/openconnect/reconnect.d"
     file="${dir}/10-vpngateway-route-reload"
 
@@ -1060,7 +1096,7 @@ network_flush_cache
 STATE_FILE="/tmp/openconnect-route.state"
 
 log() {
-    logger -t "openconnect[reconnect]" "$1"
+    logger -t "openconnect.reconnect.vpngateway-route-reload" "$1"
 }
 
 # --- Remove old route ---
@@ -1095,18 +1131,13 @@ if [ -z "$WAN_GW" ] || [ -z "$WAN_DEV" ]; then
     return 1
 fi
 
-log "Adding new route: $VPNGATEWAY via $WAN_GW dev $WAN_DEV"
+log "Adding route: $VPNGATEWAY via $WAN_GW dev $WAN_DEV"
+ip route replace "$VPNGATEWAY" via "$WAN_GW" dev "$WAN_DEV" metric 1 \
+  || { log "Failed to add route for $VPNGATEWAY"; return 1; }
+log "Successfully added route for $VPNGATEWAY"
+echo "$VPNGATEWAY $WAN_GW $WAN_DEV" > "$STATE_FILE"
 
-ip route replace "$VPNGATEWAY" via "$WAN_GW" dev "$WAN_DEV" metric 1
-
-if [ $? -eq 0 ]; then
-    log "Successfully added route for $VPNGATEWAY"
-    echo "$VPNGATEWAY $WAN_GW $WAN_DEV" > "$STATE_FILE"
-    return 0
-else
-    log "Failed to add route for $VPNGATEWAY"
-    return 1
-fi
+return 0
 EOF
     log_info "Hook '${file}' installed!"
 }
