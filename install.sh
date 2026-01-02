@@ -968,6 +968,10 @@ install_tundev_mtu_hook() {
 # OpenConnect connect hook - Set MTU on tun device
 #
 
+log() {
+    logger -t "openconnect.connect.tundev-mtu" "$1"
+}
+
 MTU="${INTERNAL_IP4_MTU:-1412}"
 log "Setting mtu=$MTU for device $TUNDEV"
 ip link set dev $TUNDEV up mtu $MTU \
