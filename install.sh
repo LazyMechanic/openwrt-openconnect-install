@@ -726,14 +726,14 @@ install_openconnect() {
     pkgs=""
 
     oc_pkg=""
-    prompt_select pkg \
+    prompt_select oc_pkg \
         'Select OpenConnect package' '1' \
         '1:luci-proto-openconnect' 'luci-proto-openconnect (with LuCI support)' \
         '2:openconnect' 'openconnect (just VPN client)'
 
     pkgs="${oc_pkg}"
 
-    if ! prompt_yes_no 'Install 'kmod-vhost-net' for enhancing networking performance?' Y; then
+    if prompt_yes_no 'Install 'kmod-vhost-net' for enhancing networking performance?' Y; then
         pkgs="${pkgs} kmod-vhost-net"
         VHOST_NET=1
     fi
